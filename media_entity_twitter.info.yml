@@ -1,0 +1,7 @@
+name: Media entity Twitter
+description: 'Media entity Twitter provider.'
+type: module
+package: Media
+core: 8.x
+dependencies:
+  - media_entity
