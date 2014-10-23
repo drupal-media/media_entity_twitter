@@ -1,18 +1,24 @@
 <?php
 
 /**
+ * @file
  * Contains \Drupal\media_entity_twitter\Plugin\MediaEntity\Type\Twitter.
  */
 
 namespace Drupal\media_entity_twitter\Plugin\MediaEntity\Type;
 
 use Drupal\Component\Plugin\PluginBase;
+use Drupal\Core\Entity\EntityManager;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\media_entity\MediaBundleInterface;
 use Drupal\media_entity\MediaInterface;
 use Drupal\media_entity\MediaTypeException;
 use Drupal\media_entity\MediaTypeInterface;
 use Drupal\Component\Serialization\Json;
+use GuzzleHttp\ClientInterface;
+use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+
 
 /**
  * Provides media type plugin for Twitter.
@@ -23,7 +29,7 @@ use Drupal\Component\Serialization\Json;
  *   description = @Translation("Provides business logic and metadata for Twitter.")
  * )
  */
-class Twitter extends PluginBase implements MediaTypeInterface {
+class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactoryPluginInterface {
   use StringTranslationTrait;
 
   /**
@@ -31,9 +37,7 @@ class Twitter extends PluginBase implements MediaTypeInterface {
    *
    * @var array
    */
-  protected $validationRegexp = array(
-    '@((http|https):){0,1}//(www\.){0,1}twitter\.com/(?<user>[a-z0-9_-]+)/(status(es){0,1})/(?<id>[a-z0-9_-]+)@i'
-  );
+  protected $validationRegexp = '@((http|https):){0,1}//(www\.){0,1}twitter\.com/(?<user>[a-z0-9_-]+)/(status(es){0,1})/(?<id>[a-z0-9_-]+)@i';
 
   /**
    * Plugin label.
@@ -50,16 +54,64 @@ class Twitter extends PluginBase implements MediaTypeInterface {
   }
 
   /**
+   * The HTTP client to fetch the feed data with.
+   *
+   * @var \GuzzleHttp\ClientInterface
+   */
+  protected $httpClient;
+
+  /**
+   * The entity manager object.
+   *
+   * @var \Drupal\Core\Entity\EntityManager;
+   */
+  protected $entityManager;
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
+    return new static(
+      $configuration,
+      $plugin_id,
+      $plugin_definition,
+      $container->get('http_client'),
+      $container->get('entity.manager')
+    );
+  }
+
+  /**
+   * Constructs a new class instance.
+   *
+   * @param array $configuration
+   *   A configuration array containing information about the plugin instance.
+   * @param string $plugin_id
+   *   The plugin_id for the plugin instance.
+   * @param mixed $plugin_definition
+   *   The plugin implementation definition.
+   */
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, ClientInterface $http_client, EntityManager $entity_manager) {
+    parent::__construct($configuration, $plugin_id, $plugin_definition);
+    $this->httpClient = $http_client;
+    $this->entityManager = $entity_manager;
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function providedFields() {
-    return array(
+    $fields = array(
       'id' => $this->t('Tweet ID'),
-      'thumbnail' => $this->t('Locally stored twitter image thumbnail'),
       'user' => $this->t('Twitter user information'),
-      'content' => $this->t('This tweet content'),
-      'retweet_count' => $this->t('Retweet count for this tweet'),
     );
+
+    if ($this->configuration['twitter']['use_twitter_api']) {
+      $fields += array(
+        'image' => $this->t('Locally stored twitter image'),
+        'content' => $this->t('This tweet content'),
+        'retweet_count' => $this->t('Retweet count for this tweet'),
+      );
+    }
   }
 
 
@@ -69,17 +121,14 @@ class Twitter extends PluginBase implements MediaTypeInterface {
   public function getField(MediaInterface $media, $name) {
     $matches = $this->matchRegexp($media);
 
-    if (!$matches) {
+    if (!$matches['id']) {
       return FALSE;
     }
 
     // First we return the fields that are available from regex.
     switch ($name) {
       case 'id':
-        if ($matches['id']) {
-          return $matches['id'];
-        }
-        return FALSE;
+        return $matches['id'];
 
       case 'user':
         if ($matches['user']) {
@@ -89,9 +138,9 @@ class Twitter extends PluginBase implements MediaTypeInterface {
     }
 
     // If we have auth settings return the other fields.
-    if ($this->configuration['twitter']['use_twitter_api'] && !empty($matches['id']) && $tweet = $this->fetchTweet($matches['id'])) {
+    if ($this->configuration['twitter']['use_twitter_api'] && $tweet = $this->fetchTweet($matches['id'])) {
       switch ($name) {
-        case 'thumbnail':
+        case 'image':
           if (isset($tweet['extended_entities']['media'][0]['media_url'])) {
             return $tweet['extended_entities']['media'][0]['media_url'];
           }
@@ -122,7 +171,7 @@ class Twitter extends PluginBase implements MediaTypeInterface {
 
     $options = array();
     $allowed_field_types = array('string', 'string_long', 'link');
-    foreach (\Drupal::entityManager()->getFieldDefinitions('media', $bundle->id()) as $field_name => $field) {
+    foreach ($this->entityManager->getFieldDefinitions('media', $bundle->id()) as $field_name => $field) {
       if (in_array($field->getType(), $allowed_field_types) && !$field->getFieldStorageDefinition()->isBaseField()) {
         $options[$field_name] = $field->getLabel();
       }
@@ -147,29 +196,49 @@ class Twitter extends PluginBase implements MediaTypeInterface {
       ),
     );
 
-    // @todo Probably this should be moved elsewhere.
+    // @todo Evauate if this should be a site-wide configuration.
     $form['consumer_key'] = array(
       '#type' => 'textfield',
       '#title' => t('Consumer key'),
       '#default_value' => empty($this->configuration['twitter']['consumer_key']) ? NULL : $this->configuration['twitter']['consumer_key'],
+      '#states' => array(
+        'visible' => array(
+          ':input[name="type_configuration[twitter][use_twitter_api]"]' => array('value' => '1'),
+        ),
+      ),
     );
 
     $form['consumer_secret'] = array(
       '#type' => 'textfield',
       '#title' => t('Consumer secret'),
       '#default_value' => empty($this->configuration['twitter']['consumer_secret']) ? NULL : $this->configuration['twitter']['consumer_secret'],
+      '#states' => array(
+        'visible' => array(
+          ':input[name="type_configuration[twitter][use_twitter_api]"]' => array('value' => '1'),
+        ),
+      ),
     );
 
     $form['oauth_access_token'] = array(
       '#type' => 'textfield',
       '#title' => t('Oauth access token'),
       '#default_value' => empty($this->configuration['twitter']['oauth_access_token']) ? NULL : $this->configuration['twitter']['oauth_access_token'],
+      '#states' => array(
+        'visible' => array(
+          ':input[name="type_configuration[twitter][use_twitter_api]"]' => array('value' => '1'),
+        ),
+      ),
     );
 
     $form['oauth_access_token_secret'] = array(
       '#type' => 'textfield',
       '#title' => t('Oauth access token secret'),
       '#default_value' => empty($this->configuration['twitter']['oauth_access_token_secret']) ? NULL : $this->configuration['twitter']['oauth_access_token_secret'],
+      '#states' => array(
+        'visible' => array(
+          ':input[name="type_configuration[twitter][use_twitter_api]"]' => array('value' => '1'),
+        ),
+      ),
     );
 
 
@@ -188,15 +257,11 @@ class Twitter extends PluginBase implements MediaTypeInterface {
     }
 
     // Check that the tweet is publicly visible.
-    if ($matches[0]) {
-      $response = \Drupal::httpClient()->get($matches[0]);
-      $effective_url_parts = parse_url($response->getEffectiveUrl());
-      if (!empty($effective_url_parts) && isset($effective_url_parts['query']) && $effective_url_parts['query'] == 'protected_redirect=true') {
-        throw new MediaTypeException($this->configuration['twitter']['source_field'], 'The tweet is not reachable.');
-      }
-    }
-    else {
-      throw new MediaTypeException($this->configuration['twitter']['source_field'], 'Tweet url not found.');
+    $response = $this->httpClient->get($matches[0]);
+    $effective_url_parts = parse_url($response->getEffectiveUrl());
+
+    if (!empty($effective_url_parts) && isset($effective_url_parts['query']) && $effective_url_parts['query'] == 'protected_redirect=true') {
+      throw new MediaTypeException($this->configuration['twitter']['source_field'], 'The tweet is not reachable.');
     }
   }
 
@@ -215,11 +280,9 @@ class Twitter extends PluginBase implements MediaTypeInterface {
     $matches = array();
     $source_field = $this->configuration['twitter']['source_field'];
 
-    foreach ($this->validationRegexp as $regexp) {
-      $property_name = $media->{$source_field}->first()->mainPropertyName();
-      if (preg_match($regexp, $media->{$source_field}->{$property_name}, $matches)) {
-        return $matches;
-      }
+    $property_name = $media->{$source_field}->first()->mainPropertyName();
+    if (preg_match($this->validationRegexp, $media->{$source_field}->{$property_name}, $matches)) {
+      return $matches;
     }
 
     return FALSE;
@@ -247,7 +310,7 @@ class Twitter extends PluginBase implements MediaTypeInterface {
    *   The tweet id.
    */
   protected function fetchTweet($id) {
-    $tweets = &drupal_static(__FUNCTION__);
+    $tweet = &drupal_static(__FUNCTION__);
 
     if (!isset($tweet)) {
       // Check for dependencies.
