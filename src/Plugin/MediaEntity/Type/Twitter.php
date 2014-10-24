@@ -107,11 +107,13 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
 
     if ($this->configuration['twitter']['use_twitter_api']) {
       $fields += array(
-        'image' => $this->t('Locally stored twitter image'),
+        'image' => $this->t('Link to the twitter image'),
         'content' => $this->t('This tweet content'),
         'retweet_count' => $this->t('Retweet count for this tweet'),
       );
     }
+
+    return $fields;
   }
 
 

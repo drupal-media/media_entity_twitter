@@ -42,7 +42,7 @@ If you need to get other fields, you will need to use Twitter's API. To get this
 - In your Twitter bundle configuration set "Whether to use Twitter api to fetch tweets or not" to "Yes"" and paste in the "Consumer key", "Consumer secret", "Oauth access token" and the "Oauth access token secret"
 
 ### Storing field values
-If you want to store the fields that are retrived from Twitter you should create appropriate fields on the created media bundle (image, content and retweet_count) and map this to the fields providet by Twitter.php.
+If you want to store the fields that are retrived from Twitter you should create appropriate fields on the created media bundle (image, content and retweet_count) and map this to the fields provided by Twitter.php.
 
 **NOTE:** At the momemnt there is no GUI for that, so the only method of doing that for now is via CMI.
 
