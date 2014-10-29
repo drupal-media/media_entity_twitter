@@ -105,7 +105,7 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
       'user' => $this->t('Twitter user information'),
     );
 
-    if ($this->configuration['twitter']['use_twitter_api']) {
+    if ($this->configuration['use_twitter_api']) {
       $fields += array(
         'image' => $this->t('Link to the twitter image'),
         'content' => $this->t('This tweet content'),
@@ -140,7 +140,7 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
     }
 
     // If we have auth settings return the other fields.
-    if ($this->configuration['twitter']['use_twitter_api'] && $tweet = $this->fetchTweet($matches['id'])) {
+    if ($this->configuration['use_twitter_api'] && $tweet = $this->fetchTweet($matches['id'])) {
       switch ($name) {
         case 'image':
           if (isset($tweet['extended_entities']['media'][0]['media_url'])) {
@@ -183,7 +183,7 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
       '#type' => 'select',
       '#title' => t('Field with source information'),
       '#description' => t('Field on media entity that stores Twitter embed code or URL.'),
-      '#default_value' => empty($this->configuration['twitter']['source_field']) ? NULL : $this->configuration['source_field'],
+      '#default_value' => empty($this->configuration['source_field']) ? NULL : $this->configuration['source_field'],
       '#options' => $options,
     );
 
@@ -191,7 +191,7 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
       '#type' => 'select',
       '#title' => t('Whether to use Twitter api to fetch tweets or not.'),
       '#description' => t("In order to use Twitter's api you have to create a developer account and an application. For more information consult the readme file."),
-      '#default_value' => empty($this->configuration['twitter']['use_twitter_api']) ? 0 : $this->configuration['twitter']['use_twitter_api'],
+      '#default_value' => empty($this->configuration['use_twitter_api']) ? 0 : $this->configuration['use_twitter_api'],
       '#options' => array(
         0 => t('No'),
         1 => t('Yes'),
@@ -202,7 +202,7 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
     $form['consumer_key'] = array(
       '#type' => 'textfield',
       '#title' => t('Consumer key'),
-      '#default_value' => empty($this->configuration['twitter']['consumer_key']) ? NULL : $this->configuration['twitter']['consumer_key'],
+      '#default_value' => empty($this->configuration['consumer_key']) ? NULL : $this->configuration['consumer_key'],
       '#states' => array(
         'visible' => array(
           ':input[name="type_configuration[twitter][use_twitter_api]"]' => array('value' => '1'),
@@ -213,7 +213,7 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
     $form['consumer_secret'] = array(
       '#type' => 'textfield',
       '#title' => t('Consumer secret'),
-      '#default_value' => empty($this->configuration['twitter']['consumer_secret']) ? NULL : $this->configuration['twitter']['consumer_secret'],
+      '#default_value' => empty($this->configuration['consumer_secret']) ? NULL : $this->configuration['consumer_secret'],
       '#states' => array(
         'visible' => array(
           ':input[name="type_configuration[twitter][use_twitter_api]"]' => array('value' => '1'),
@@ -224,7 +224,7 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
     $form['oauth_access_token'] = array(
       '#type' => 'textfield',
       '#title' => t('Oauth access token'),
-      '#default_value' => empty($this->configuration['twitter']['oauth_access_token']) ? NULL : $this->configuration['twitter']['oauth_access_token'],
+      '#default_value' => empty($this->configuration['oauth_access_token']) ? NULL : $this->configuration['oauth_access_token'],
       '#states' => array(
         'visible' => array(
           ':input[name="type_configuration[twitter][use_twitter_api]"]' => array('value' => '1'),
@@ -235,7 +235,7 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
     $form['oauth_access_token_secret'] = array(
       '#type' => 'textfield',
       '#title' => t('Oauth access token secret'),
-      '#default_value' => empty($this->configuration['twitter']['oauth_access_token_secret']) ? NULL : $this->configuration['twitter']['oauth_access_token_secret'],
+      '#default_value' => empty($this->configuration['oauth_access_token_secret']) ? NULL : $this->configuration['oauth_access_token_secret'],
       '#states' => array(
         'visible' => array(
           ':input[name="type_configuration[twitter][use_twitter_api]"]' => array('value' => '1'),
@@ -255,7 +255,7 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
 
     // Validate regex.
     if (!$matches) {
-      throw new MediaTypeException($this->configuration['twitter']['source_field'], 'Not valid URL/embed code.');
+      throw new MediaTypeException($this->configuration['source_field'], 'Not valid URL/embed code.');
     }
 
     // Check that the tweet is publicly visible.
@@ -263,7 +263,7 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
     $effective_url_parts = parse_url($response->getEffectiveUrl());
 
     if (!empty($effective_url_parts) && isset($effective_url_parts['query']) && $effective_url_parts['query'] == 'protected_redirect=true') {
-      throw new MediaTypeException($this->configuration['twitter']['source_field'], 'The tweet is not reachable.');
+      throw new MediaTypeException($this->configuration['source_field'], 'The tweet is not reachable.');
     }
   }
 
@@ -280,7 +280,7 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
    */
   protected function matchRegexp(MediaInterface $media) {
     $matches = array();
-    $source_field = $this->configuration['twitter']['source_field'];
+    $source_field = $this->configuration['source_field'];
 
     $property_name = $media->{$source_field}->first()->mainPropertyName();
     if (preg_match($this->validationRegexp, $media->{$source_field}->{$property_name}, $matches)) {
@@ -298,10 +298,10 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
    */
   protected function getAuthSettings() {
     return array(
-      'consumer_key' => $this->configuration['twitter']['consumer_key'],
-      'consumer_secret' => $this->configuration['twitter']['consumer_secret'],
-      'oauth_access_token' => $this->configuration['twitter']['oauth_access_token'],
-      'oauth_access_token_secret' => $this->configuration['twitter']['oauth_access_token_secret'],
+      'consumer_key' => $this->configuration['consumer_key'],
+      'consumer_secret' => $this->configuration['consumer_secret'],
+      'oauth_access_token' => $this->configuration['oauth_access_token'],
+      'oauth_access_token_secret' => $this->configuration['oauth_access_token_secret'],
     );
   }
 
