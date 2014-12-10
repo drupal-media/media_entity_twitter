@@ -118,7 +118,8 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
     if ($this->configuration['use_twitter_api']) {
       $fields += array(
         'image' => $this->t('Link to the twitter image'),
-        'image_local' => $this->t('URI to the local copy of the image,'),
+        'image_local' => $this->t('Copies tweet image to the local filesystem and returns the URI.'),
+        'image_local_uri' => $this->t('Gets URI of the locally saved image.'),
         'content' => $this->t('This tweet content'),
         'retweet_count' => $this->t('Retweet count for this tweet'),
       );
@@ -154,24 +155,27 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
     if ($this->configuration['use_twitter_api'] && $tweet = $this->fetchTweet($matches['id'])) {
       switch ($name) {
         case 'image':
+          if (isset($tweet['extended_entities']['media'][0]['media_url'])) {
+            return $tweet['extended_entities']['media'][0]['media_url'];
+          }
+          return FALSE;
+
         case 'image_local':
           if (isset($tweet['extended_entities']['media'][0]['media_url'])) {
-            if ($name == 'image') {
-              return $tweet['extended_entities']['media'][0]['media_url'];
-            }
-            else {
-              $local_uri = $this->config->get('local_images') . '/' . $matches['id'] . '.' . pathinfo($tweet['extended_entities']['media'][0]['media_url'], PATHINFO_EXTENSION);
+            $local_uri = $this->config->get('local_images') . '/' . $matches['id'] . '.' . pathinfo($tweet['extended_entities']['media'][0]['media_url'], PATHINFO_EXTENSION);
 
-              // File exists check is not ok. Try to figure out more perormant way.
-              if (!file_exists($local_uri)) {
-                file_prepare_directory($local_uri, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
+            file_prepare_directory($local_uri, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
 
-                $image = file_get_contents($local_uri);
-                file_unmanaged_save_data($image, $local_uri, FILE_EXISTS_REPLACE);
+            $image = file_get_contents($local_uri);
+            file_unmanaged_save_data($image, $local_uri, FILE_EXISTS_REPLACE);
 
-                return $local_uri;
-              }
-            }
+            return $local_uri;
+          }
+          return FALSE;
+
+        case 'image_local_uri':
+          if (isset($tweet['extended_entities']['media'][0]['media_url'])) {
+            return $this->config->get('local_images') . '/' . $matches['id'] . '.' . pathinfo($tweet['extended_entities']['media'][0]['media_url'], PATHINFO_EXTENSION);
           }
           return FALSE;
 
