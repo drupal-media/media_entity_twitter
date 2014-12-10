@@ -164,12 +164,14 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
           if (isset($tweet['extended_entities']['media'][0]['media_url'])) {
             $local_uri = $this->config->get('local_images') . '/' . $matches['id'] . '.' . pathinfo($tweet['extended_entities']['media'][0]['media_url'], PATHINFO_EXTENSION);
 
-            file_prepare_directory($local_uri, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
+            if (!file_exists($local_uri)) {
+              file_prepare_directory($local_uri, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
 
-            $image = file_get_contents($local_uri);
-            file_unmanaged_save_data($image, $local_uri, FILE_EXISTS_REPLACE);
+              $image = file_get_contents($local_uri);
+              file_unmanaged_save_data($image, $local_uri, FILE_EXISTS_REPLACE);
 
-            return $local_uri;
+              return $local_uri;
+            }
           }
           return FALSE;
 
