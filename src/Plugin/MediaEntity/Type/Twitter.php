@@ -8,6 +8,7 @@
 namespace Drupal\media_entity_twitter\Plugin\MediaEntity\Type;
 
 use Drupal\Component\Plugin\PluginBase;
+use Drupal\Core\Config\Config;
 use Drupal\Core\Entity\EntityManager;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\media_entity\MediaBundleInterface;
@@ -68,6 +69,13 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
   protected $entityManager;
 
   /**
+   * Media entity Twitter config object.
+   *
+   * @var \Drupal\Core\Config\Config
+   */
+  protected $config;
+
+  /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
@@ -76,7 +84,8 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
       $plugin_id,
       $plugin_definition,
       $container->get('http_client'),
-      $container->get('entity.manager')
+      $container->get('entity.manager'),
+      $container->get('config.factory')->get('media_entity_twitter.settings')
     );
   }
 
@@ -90,10 +99,11 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
    * @param mixed $plugin_definition
    *   The plugin implementation definition.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, ClientInterface $http_client, EntityManager $entity_manager) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, ClientInterface $http_client, EntityManager $entity_manager, Config $config) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
     $this->httpClient = $http_client;
     $this->entityManager = $entity_manager;
+    $this->config = $config;
   }
 
   /**
@@ -108,6 +118,7 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
     if ($this->configuration['use_twitter_api']) {
       $fields += array(
         'image' => $this->t('Link to the twitter image'),
+        'image_local' => $this->t('URI to the local copy of the image,'),
         'content' => $this->t('This tweet content'),
         'retweet_count' => $this->t('Retweet count for this tweet'),
       );
@@ -143,8 +154,24 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
     if ($this->configuration['use_twitter_api'] && $tweet = $this->fetchTweet($matches['id'])) {
       switch ($name) {
         case 'image':
+        case 'image_local':
           if (isset($tweet['extended_entities']['media'][0]['media_url'])) {
-            return $tweet['extended_entities']['media'][0]['media_url'];
+            if ($name == 'image') {
+              return $tweet['extended_entities']['media'][0]['media_url'];
+            }
+            else {
+              $local_uri = $this->config->get('local_images') . '/' . $matches['id'] . '.' . pathinfo($tweet['extended_entities']['media'][0]['media_url'], PATHINFO_EXTENSION);
+
+              // File exists check is not ok. Try to figure out more perormant way.
+              if (!file_exists($local_uri)) {
+                file_prepare_directory($local_uri, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
+
+                $image = file_get_contents($local_uri);
+                file_unmanaged_save_data($image, $local_uri, FILE_EXISTS_REPLACE);
+
+                return $local_uri;
+              }
+            }
           }
           return FALSE;
 
@@ -265,6 +292,17 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
     if (!empty($effective_url_parts) && isset($effective_url_parts['query']) && $effective_url_parts['query'] == 'protected_redirect=true') {
       throw new MediaTypeException($this->configuration['source_field'], 'The tweet is not reachable.');
     }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function thumbnail(MediaInterface $media) {
+    if ($local_image = $this->getField($media, 'local_image')) {
+      return $local_image;
+    }
+
+    return $this->config->get('icon_base') . '/twitter.png';
   }
 
   /**
