@@ -1,3 +1,11 @@
+media_entity_twitter.settings:
+  type: mapping
+  label: 'Media entity Twitter settings'
+  mapping:
+    local_images:
+      type: string
+      label: 'Base folder for tuhmbnails'
+
 media_entity.bundle.type.twitter:
   type: mapping
   label: 'Twitter type configuration'
