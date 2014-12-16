@@ -8,7 +8,7 @@
 namespace Drupal\media_entity_twitter\Plugin\MediaEntity\Type;
 
 use Drupal\Component\Plugin\PluginBase;
-use Drupal\Core\Config\Config;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityManager;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\media_entity\MediaBundleInterface;
@@ -48,13 +48,6 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
   protected $label;
 
   /**
-   * {@inheritdoc}
-   */
-  public function label() {
-    return $this->label;
-  }
-
-  /**
    * The HTTP client to fetch the feed data with.
    *
    * @var \GuzzleHttp\ClientInterface
@@ -69,11 +62,11 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
   protected $entityManager;
 
   /**
-   * Media entity Twitter config object.
+   * Config factory service.
    *
-   * @var \Drupal\Core\Config\Config
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
    */
-  protected $config;
+  protected $configFactory;
 
   /**
    * {@inheritdoc}
@@ -85,7 +78,7 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
       $plugin_definition,
       $container->get('http_client'),
       $container->get('entity.manager'),
-      $container->get('config.factory')->get('media_entity_twitter.settings')
+      $container->get('config.factory')
     );
   }
 
@@ -98,12 +91,25 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
    *   The plugin_id for the plugin instance.
    * @param mixed $plugin_definition
    *   The plugin implementation definition.
+   * @param \GuzzleHttp\ClientInterface $http_client
+   *   HTTP client.
+   * @param \Drupal\Core\Entity\EntityManager $entity_manager
+   *   Entity manager service.
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
+   *   Config factory service.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, ClientInterface $http_client, EntityManager $entity_manager, Config $config) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, ClientInterface $http_client, EntityManager $entity_manager, ConfigFactoryInterface $config_factory) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
     $this->httpClient = $http_client;
     $this->entityManager = $entity_manager;
-    $this->config = $config;
+    $this->configFactory = $config_factory;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function label() {
+    return $this->label;
   }
 
   /**
@@ -162,7 +168,7 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
 
         case 'image_local':
           if (isset($tweet['extended_entities']['media'][0]['media_url'])) {
-            $local_uri = $this->config->get('local_images') . '/' . $matches['id'] . '.' . pathinfo($tweet['extended_entities']['media'][0]['media_url'], PATHINFO_EXTENSION);
+            $local_uri = $this->configFactory->get('media_entity_twitter.settings')->get('local_images') . '/' . $matches['id'] . '.' . pathinfo($tweet['extended_entities']['media'][0]['media_url'], PATHINFO_EXTENSION);
 
             if (!file_exists($local_uri)) {
               file_prepare_directory($local_uri, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
@@ -177,7 +183,7 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
 
         case 'image_local_uri':
           if (isset($tweet['extended_entities']['media'][0]['media_url'])) {
-            return $this->config->get('local_images') . '/' . $matches['id'] . '.' . pathinfo($tweet['extended_entities']['media'][0]['media_url'], PATHINFO_EXTENSION);
+            return $this->configFactory->get('media_entity_twitter.settings')->get('local_images') . '/' . $matches['id'] . '.' . pathinfo($tweet['extended_entities']['media'][0]['media_url'], PATHINFO_EXTENSION);
           }
           return FALSE;
 
@@ -308,7 +314,7 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
       return $local_image;
     }
 
-    return $this->config->get('icon_base') . '/twitter.png';
+    return $this->configFactory->get('media_entity.settings')->get('icon_base') . '/twitter.png';
   }
 
   /**
