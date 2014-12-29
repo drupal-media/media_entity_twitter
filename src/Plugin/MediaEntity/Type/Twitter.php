@@ -7,17 +7,14 @@
 
 namespace Drupal\media_entity_twitter\Plugin\MediaEntity\Type;
 
-use Drupal\Component\Plugin\PluginBase;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityManager;
-use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\media_entity\MediaBundleInterface;
 use Drupal\media_entity\MediaInterface;
+use Drupal\media_entity\MediaTypeBase;
 use Drupal\media_entity\MediaTypeException;
-use Drupal\media_entity\MediaTypeInterface;
 use Drupal\Component\Serialization\Json;
 use GuzzleHttp\ClientInterface;
-use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 
@@ -30,8 +27,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *   description = @Translation("Provides business logic and metadata for Twitter.")
  * )
  */
-class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactoryPluginInterface {
-  use StringTranslationTrait;
+class Twitter extends MediaTypeBase {
 
   /**
    * List of validation regular expressions.
@@ -41,25 +37,11 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
   protected $validationRegexp = '@((http|https):){0,1}//(www\.){0,1}twitter\.com/(?<user>[a-z0-9_-]+)/(status(es){0,1})/(?<id>[a-z0-9_-]+)@i';
 
   /**
-   * Plugin label.
-   *
-   * @var string
-   */
-  protected $label;
-
-  /**
    * The HTTP client to fetch the feed data with.
    *
    * @var \GuzzleHttp\ClientInterface
    */
   protected $httpClient;
-
-  /**
-   * The entity manager object.
-   *
-   * @var \Drupal\Core\Entity\EntityManager;
-   */
-  protected $entityManager;
 
   /**
    * Config factory service.
@@ -99,17 +81,9 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
    *   Config factory service.
    */
   public function __construct(array $configuration, $plugin_id, $plugin_definition, ClientInterface $http_client, EntityManager $entity_manager, ConfigFactoryInterface $config_factory) {
-    parent::__construct($configuration, $plugin_id, $plugin_definition);
+    parent::__construct($configuration, $plugin_id, $plugin_definition, $entity_manager, $config_factory->get('media_entity.settings'));
     $this->httpClient = $http_client;
-    $this->entityManager = $entity_manager;
     $this->configFactory = $config_factory;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function label() {
-    return $this->label;
   }
 
   /**
@@ -133,7 +107,6 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
 
     return $fields;
   }
-
 
   /**
    * {@inheritdoc}
@@ -314,7 +287,7 @@ class Twitter extends PluginBase implements MediaTypeInterface, ContainerFactory
       return $local_image;
     }
 
-    return $this->configFactory->get('media_entity.settings')->get('icon_base') . '/twitter.png';
+    return $this->config->get('icon_base') . '/twitter.png';
   }
 
   /**
