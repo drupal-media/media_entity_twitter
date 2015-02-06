@@ -1,4 +1,5 @@
 {
+  "name": "drupal-contrib:media_entity_twitter",
   "require": {
     "j7mbo/twitter-api-php": "dev-master"
   }
