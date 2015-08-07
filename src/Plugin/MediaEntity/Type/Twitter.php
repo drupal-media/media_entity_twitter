@@ -271,11 +271,13 @@ class Twitter extends MediaTypeBase {
     }
 
     // Check that the tweet is publicly visible.
-    $response = $this->httpClient->get($matches[0]);
-    $effective_url_parts = parse_url($response->getEffectiveUrl());
+    $response = $this->httpClient->request('get', $matches[0], ['allow_redirects' => FALSE]);
 
-    if (!empty($effective_url_parts) && isset($effective_url_parts['query']) && $effective_url_parts['query'] == 'protected_redirect=true') {
-      throw new MediaTypeException($this->configuration['source_field'], 'The tweet is not reachable.');
+    if ($response->getStatusCode() == 302 && ($location = $response->getHeader('location'))) {
+      $effective_url_parts = parse_url($location[0]);
+      if (!empty($effective_url_parts) && isset($effective_url_parts['query']) && $effective_url_parts['query'] == 'protected_redirect=true') {
+        throw new MediaTypeException($this->configuration['source_field'], 'The tweet is not reachable.');
+      }
     }
   }
 
