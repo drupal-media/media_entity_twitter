@@ -14,7 +14,7 @@ use Drupal\media_entity\MediaInterface;
 use Drupal\media_entity\MediaTypeBase;
 use Drupal\media_entity\MediaTypeException;
 use Drupal\Component\Serialization\Json;
-use GuzzleHttp\ClientInterface;
+use GuzzleHttp\Client;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 
@@ -39,7 +39,7 @@ class Twitter extends MediaTypeBase {
   /**
    * The HTTP client to fetch the feed data with.
    *
-   * @var \GuzzleHttp\ClientInterface
+   * @var \GuzzleHttp\Client
    */
   protected $httpClient;
 
@@ -73,14 +73,14 @@ class Twitter extends MediaTypeBase {
    *   The plugin_id for the plugin instance.
    * @param mixed $plugin_definition
    *   The plugin implementation definition.
-   * @param \GuzzleHttp\ClientInterface $http_client
+   * @param \GuzzleHttp\Client $http_client
    *   HTTP client.
    * @param \Drupal\Core\Entity\EntityManager $entity_manager
    *   Entity manager service.
    * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   Config factory service.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, ClientInterface $http_client, EntityManager $entity_manager, ConfigFactoryInterface $config_factory) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, Client $http_client, EntityManager $entity_manager, ConfigFactoryInterface $config_factory) {
     parent::__construct($configuration, $plugin_id, $plugin_definition, $entity_manager, $config_factory->get('media_entity.settings'));
     $this->httpClient = $http_client;
     $this->configFactory = $config_factory;
