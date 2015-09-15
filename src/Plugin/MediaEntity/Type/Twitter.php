@@ -271,7 +271,7 @@ class Twitter extends MediaTypeBase {
     }
 
     // Check that the tweet is publicly visible.
-    $response = $this->httpClient->request('get', $matches[0], ['allow_redirects' => FALSE]);
+    $response = $this->httpClient->get($matches[0], ['allow_redirects' => FALSE]);
 
     if ($response->getStatusCode() == 302 && ($location = $response->getHeader('location'))) {
       $effective_url_parts = parse_url($location[0]);
