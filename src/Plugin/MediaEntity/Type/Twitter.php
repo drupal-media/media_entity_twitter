@@ -144,13 +144,11 @@ class Twitter extends MediaTypeBase {
             $local_uri = $this->configFactory->get('media_entity_twitter.settings')->get('local_images') . '/' . $matches['id'] . '.' . pathinfo($tweet['extended_entities']['media'][0]['media_url'], PATHINFO_EXTENSION);
 
             if (!file_exists($local_uri)) {
-              file_prepare_directory($local_uri, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
-
-              $image = file_get_contents($tweet['extended_entities']['media'][0]['media_url']);
-              file_unmanaged_save_data($image, $local_uri, FILE_EXISTS_REPLACE);
-
-              return $local_uri;
+              file_prepare_directory($this->configFactory->get('media_entity_twitter.settings')->get('local_images'), FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
+              file_unmanaged_save_data($tweet['extended_entities']['media'][0]['media_url'], $local_uri, FILE_EXISTS_REPLACE);
             }
+
+            return $local_uri;
           }
           return FALSE;
 
@@ -285,7 +283,7 @@ class Twitter extends MediaTypeBase {
    * {@inheritdoc}
    */
   public function thumbnail(MediaInterface $media) {
-    if ($local_image = $this->getField($media, 'local_image')) {
+    if ($local_image = $this->getField($media, 'image_local')) {
       return $local_image;
     }
 
