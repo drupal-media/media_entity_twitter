@@ -14,7 +14,6 @@ use Drupal\media_entity\MediaInterface;
 use Drupal\media_entity\MediaTypeBase;
 use Drupal\media_entity\MediaTypeException;
 use Drupal\Component\Serialization\Json;
-use GuzzleHttp\Client;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 
@@ -30,18 +29,11 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class Twitter extends MediaTypeBase {
 
   /**
-   * List of validation regular expressions.
+   * Embed code validation regexp.
    *
    * @var array
    */
-  protected $validationRegexp = '@((http|https):){0,1}//(www\.){0,1}twitter\.com/(?<user>[a-z0-9_-]+)/(status(es){0,1})/(?<id>[a-z0-9_-]+)@i';
-
-  /**
-   * The HTTP client to fetch the feed data with.
-   *
-   * @var \GuzzleHttp\Client
-   */
-  protected $httpClient;
+  const VALIDATION_REGEXP = '@((http|https):){0,1}//(www\.){0,1}twitter\.com/(?<user>[a-z0-9_-]+)/(status(es){0,1})/(?<id>[\d]+)@i';
 
   /**
    * Config factory service.
@@ -58,7 +50,6 @@ class Twitter extends MediaTypeBase {
       $configuration,
       $plugin_id,
       $plugin_definition,
-      $container->get('http_client'),
       $container->get('entity.manager'),
       $container->get('config.factory')
     );
@@ -73,16 +64,13 @@ class Twitter extends MediaTypeBase {
    *   The plugin_id for the plugin instance.
    * @param mixed $plugin_definition
    *   The plugin implementation definition.
-   * @param \GuzzleHttp\Client $http_client
-   *   HTTP client.
    * @param \Drupal\Core\Entity\EntityManager $entity_manager
    *   Entity manager service.
    * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   Config factory service.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, Client $http_client, EntityManager $entity_manager, ConfigFactoryInterface $config_factory) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityManager $entity_manager, ConfigFactoryInterface $config_factory) {
     parent::__construct($configuration, $plugin_id, $plugin_definition, $entity_manager, $config_factory->get('media_entity.settings'));
-    $this->httpClient = $http_client;
     $this->configFactory = $config_factory;
   }
 
@@ -253,29 +241,21 @@ class Twitter extends MediaTypeBase {
       ),
     );
 
-
     return $form;
   }
 
   /**
    * {@inheritdoc}
    */
-  public function validate(MediaInterface $media) {
-    $matches = $this->matchRegexp($media);
+  public function attachConstraints(MediaInterface $media) {
+    parent::attachConstraints($media);
 
-    // Validate regex.
-    if (!$matches) {
-      throw new MediaTypeException($this->configuration['source_field'], 'Not valid URL/embed code.');
-    }
-
-    // Check that the tweet is publicly visible.
-    $response = $this->httpClient->get($matches[0], ['allow_redirects' => FALSE]);
-
-    if ($response->getStatusCode() == 302 && ($location = $response->getHeader('location'))) {
-      $effective_url_parts = parse_url($location[0]);
-      if (!empty($effective_url_parts) && isset($effective_url_parts['query']) && $effective_url_parts['query'] == 'protected_redirect=true') {
-        throw new MediaTypeException($this->configuration['source_field'], 'The tweet is not reachable.');
-      }
+    $source_field_name = $this->configuration['source_field'];
+    foreach ($media->get($source_field_name) as &$embed_code) {
+      /** @var \Drupal\Core\TypedData\DataDefinitionInterface $typed_data */
+      $typed_data = $embed_code->getDataDefinition();
+      $typed_data->addConstraint('TweetEmbedCode');
+      $typed_data->addConstraint('TweetVisible');
     }
   }
 
@@ -306,7 +286,7 @@ class Twitter extends MediaTypeBase {
     $source_field = $this->configuration['source_field'];
 
     $property_name = $media->{$source_field}->first()->mainPropertyName();
-    if (preg_match($this->validationRegexp, $media->{$source_field}->{$property_name}, $matches)) {
+    if (preg_match(static::VALIDATION_REGEXP, $media->{$source_field}->{$property_name}, $matches)) {
       return $matches;
     }
 
