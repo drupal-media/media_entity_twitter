@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/drupal-media/media_entity_twitter.svg?branch=8.x-1.x)](https://travis-ci.org/drupal-media/media_entity_twitter)
+
 ## About Media entity
 
 Media entity provides a 'base' entity for a media element. This is a very basic
