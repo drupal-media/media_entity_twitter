@@ -29,13 +29,6 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class Twitter extends MediaTypeBase {
 
   /**
-   * Embed code validation regexp.
-   *
-   * @var array
-   */
-  const VALIDATION_REGEXP = '@((http|https):){0,1}//(www\.){0,1}twitter\.com/(?<user>[a-z0-9_-]+)/(status(es){0,1})/(?<id>[\d]+)@i';
-
-  /**
    * Config factory service.
    *
    * @var \Drupal\Core\Config\ConfigFactoryInterface
@@ -54,6 +47,15 @@ class Twitter extends MediaTypeBase {
       $container->get('config.factory')
     );
   }
+
+  /**
+   * List of validation regular expressions.
+   *
+   * @var array
+   */
+  public static $validationRegexp = array(
+    '@((http|https):){0,1}//(www\.){0,1}twitter\.com/(?<user>[a-z0-9_-]+)/(status(es){0,1})/(?<id>[\d]+)@i' => 'id',
+  );
 
   /**
    * Constructs a new class instance.
@@ -286,8 +288,10 @@ class Twitter extends MediaTypeBase {
     $source_field = $this->configuration['source_field'];
 
     $property_name = $media->{$source_field}->first()->mainPropertyName();
-    if (preg_match(static::VALIDATION_REGEXP, $media->{$source_field}->{$property_name}, $matches)) {
-      return $matches;
+    foreach ($this->validationRegexp as $pattern => $key) {
+      if (preg_match($pattern, $media->{$source_field}->{$property_name}, $matches)) {
+        return $matches;
+      }
     }
 
     return FALSE;
