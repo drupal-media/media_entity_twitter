@@ -53,7 +53,7 @@ class TweetVisibleConstraintValidator extends ConstraintValidator implements Con
     }
 
     $matches = [];
-    preg_match(Twitter::VALIDATION_REGEXP, $entity->value, $matches);
+    preg_match(Twitter::VALIDATION_REGEXP, $entity->uri, $matches);
     $response = $this->httpClient->get($matches[0], ['allow_redirects' => FALSE]);
 
     if ($response->getStatusCode() == 302 && ($location = $response->getHeader('location'))) {
