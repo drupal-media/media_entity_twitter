@@ -31,7 +31,17 @@ class TwitterEmbedFormatter extends FormatterBase {
     $element = array();
     foreach ($items as $delta => $item) {
       $matches = [];
-      preg_match(Twitter::VALIDATION_REGEXP, $item->uri, $matches);
+
+      foreach (Twitter::$validationRegexp as $pattern => $key) {
+        if (preg_match($pattern, $item->uri, $item_matches)) {
+          $matches[] = $item_matches;
+        }
+      }
+
+      if (!empty($matches)) {
+        $matches = reset($matches);
+      }
+
       if (!empty($matches['user']) && !empty($matches['id'])) {
         $element[$delta] = [
           '#theme' => 'media_entity_twitter_tweet',
