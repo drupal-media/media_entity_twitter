@@ -24,7 +24,7 @@ class TweetEmbedCodeConstraintValidator extends ConstraintValidator {
       return;
     }
 
-    if (preg_match(Twitter::VALIDATION_REGEXP, $entity->value)) {
+    if (preg_match(Twitter::VALIDATION_REGEXP, $entity->uri)) {
       return;
     }
 
