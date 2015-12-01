@@ -24,8 +24,10 @@ class TweetEmbedCodeConstraintValidator extends ConstraintValidator {
       return;
     }
 
-    if (preg_match(Twitter::VALIDATION_REGEXP, $entity->value)) {
-      return;
+    foreach (Twitter::$validationRegexp as $pattern => $key) {
+      if (preg_match($pattern, $entity->value)) {
+        return;
+      }
     }
 
     $this->context->addViolation($constraint->message);
