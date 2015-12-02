@@ -80,7 +80,7 @@ class TwitterEmbedFormatter extends FormatterBase {
     if (!empty($element)) {
       $element['#attached'] = [
         'library' => [
-          'media_entity_twitter/twitter.widget',
+          'media_entity_twitter/integration',
         ],
       ];
     }

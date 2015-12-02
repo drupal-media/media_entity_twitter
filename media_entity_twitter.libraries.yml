@@ -1,8 +1,4 @@
-twitter.widget:
-  remote: //platform.twitter.com/widgets.js
-  version: " 2.3.0"
-  license:
-    name: MIT
-    url: http://www.opensource.org/licenses/mit-license.php
+integration:
+  version: VERSION
   js:
-    //platform.twitter.com/widgets.js: {type: external, minified: true}
+    'js/twitter.js': {}
