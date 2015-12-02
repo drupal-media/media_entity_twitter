@@ -8,7 +8,7 @@
       $('blockquote.twitter-tweet > a', context).each(function () {
         // this === link
         var tweetID = this.href.substr(this.href.lastIndexOf('/') + 1);
-        twttr.createTweet(tweetID, this.parentNode);
+        twttr.widgets.createTweet(tweetID, this.parentNode);
       });
     },
 
