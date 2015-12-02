@@ -2,10 +2,10 @@
 
 /**
  * @file
- * Contains \Drupal\media_entity_twitter\Kernel\Extension\ConstraintsTest.
+ * Contains \Drupal\Tests\media_entity_twitter\Unit\ConstraintsTest.
  */
 
-namespace Drupal\media_entity_twitter\Kernel\Extension;
+namespace Drupal\Tests\media_entity_twitter\Unit;
 
 use Drupal\media_entity_twitter\Plugin\Validation\Constraint\TweetEmbedCodeConstraint;
 use Drupal\media_entity_twitter\Plugin\Validation\Constraint\TweetEmbedCodeConstraintValidator;

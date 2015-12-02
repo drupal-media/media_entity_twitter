@@ -1,5 +1,5 @@
 media_entity_twitter.settings:
-  type: mapping
+  type: config_object
   label: 'Media entity Twitter settings'
   mapping:
     local_images:
