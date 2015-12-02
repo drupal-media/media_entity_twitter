@@ -15,7 +15,7 @@ use Symfony\Component\Validator\Constraint;
  * @Constraint(
  *   id = "TweetVisible",
  *   label = @Translation("Tweet publicly visible", context = "Validation"),
- *   type = { "entity", "entity_reference" }
+ *   type = { "entity", "entity_reference", "string", "string_long" }
  * )
  */
 class TweetVisibleConstraint extends Constraint {
