@@ -19,13 +19,13 @@ class TweetEmbedCodeConstraintValidator extends ConstraintValidator {
   /**
    * {@inheritdoc}
    */
-  public function validate($entity, Constraint $constraint) {
-    if (!isset($entity)) {
+  public function validate($value, Constraint $constraint) {
+    if (!isset($value)) {
       return;
     }
 
     foreach (Twitter::$validationRegexp as $pattern => $key) {
-      if (preg_match($pattern, $entity->value)) {
+      if (preg_match($pattern, $value->value)) {
         return;
       }
     }
