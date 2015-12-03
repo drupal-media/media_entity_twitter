@@ -19,6 +19,8 @@ use Symfony\Component\Validator\ConstraintValidator;
  */
 class TweetVisibleConstraintValidator extends ConstraintValidator implements ContainerInjectionInterface {
 
+  use StringOrLinkTrait;
+
   /**
    * The HTTP client to fetch the feed data with.
    *
@@ -47,6 +49,7 @@ class TweetVisibleConstraintValidator extends ConstraintValidator implements Con
    * {@inheritdoc}
    */
   public function validate($value, Constraint $constraint) {
+    $value = $this->getValue($value);
     if (!isset($value)) {
       return;
     }
@@ -54,7 +57,7 @@ class TweetVisibleConstraintValidator extends ConstraintValidator implements Con
     $matches = [];
 
     foreach (Twitter::$validationRegexp as $pattern => $key) {
-      if (preg_match($pattern, $value->value, $item_matches)) {
+      if (preg_match($pattern, $value, $item_matches)) {
         $matches[] = $item_matches;
       }
     }

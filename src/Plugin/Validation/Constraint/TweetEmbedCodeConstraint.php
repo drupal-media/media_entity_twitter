@@ -15,7 +15,7 @@ use Symfony\Component\Validator\Constraint;
  * @Constraint(
  *   id = "TweetEmbedCode",
  *   label = @Translation("Tweet embed code", context = "Validation"),
- *   type = { "string", "string_long" }
+ *   type = { "link", "string", "string_long" }
  * )
  */
 class TweetEmbedCodeConstraint extends Constraint {

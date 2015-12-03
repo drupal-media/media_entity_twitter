@@ -16,10 +16,13 @@ use Symfony\Component\Validator\ConstraintValidator;
  */
 class TweetEmbedCodeConstraintValidator extends ConstraintValidator {
 
+  use StringOrLinkTrait;
+
   /**
    * {@inheritdoc}
    */
   public function validate($value, Constraint $constraint) {
+    $value = $this->getValue($value);
     if (!isset($value)) {
       return;
     }

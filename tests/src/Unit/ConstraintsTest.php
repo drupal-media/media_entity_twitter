@@ -7,6 +7,8 @@
 
 namespace Drupal\Tests\media_entity_twitter\Unit;
 
+use Drupal\Core\Field\FieldDefinitionInterface;
+use Drupal\Core\Field\FieldItemInterface;
 use Drupal\media_entity_twitter\Plugin\Validation\Constraint\TweetEmbedCodeConstraint;
 use Drupal\media_entity_twitter\Plugin\Validation\Constraint\TweetEmbedCodeConstraintValidator;
 use Drupal\media_entity_twitter\Plugin\Validation\Constraint\TweetVisibleConstraint;
@@ -19,6 +21,26 @@ use Drupal\Tests\UnitTestCase;
  * @group media_entity
  */
 class ConstraintsTest extends UnitTestCase {
+
+  /**
+   * Mocks a string or string_long FieldItemInterface wrapping a value.
+   *
+   * @param string $value
+   *   The wrapped value.
+   *
+   * @return \Drupal\Core\Field\FieldItemInterface
+   */
+  protected function getMockFieldItem($value) {
+    $item = $this->getMock(FieldItemInterface::class);
+
+    $field_definition = $this->getMock(FieldDefinitionInterface::class);
+    $field_definition->method('getType')->willReturn(strlen($value) > 255 ? 'string_long' : 'string');
+    $item->method('getFieldDefinition')->willReturn($field_definition);
+
+    $item->method('__get')->with('value')->willReturn($value);
+
+    return $item;
+  }
 
   /**
    * Tests TweetEmbedCode constraint.
@@ -49,9 +71,7 @@ class ConstraintsTest extends UnitTestCase {
     $validator = new TweetEmbedCodeConstraintValidator();
     $validator->initialize($execution_context);
 
-    $data = new \stdClass();
-    $data->value = $embed_code;
-    $validator->validate($data, $constraint);
+    $validator->validate($this->getMockFieldItem($embed_code), $constraint);
   }
 
   /**
@@ -104,9 +124,7 @@ class ConstraintsTest extends UnitTestCase {
     $validator = new TweetVisibleConstraintValidator($http_client);
     $validator->initialize($execution_context);
 
-    $data = new \stdClass();
-    $data->value = $embed_code;
-    $validator->validate($data, $constraint);
+    $validator->validate($this->getMockFieldItem($embed_code), $constraint);
   }
 
   /**
