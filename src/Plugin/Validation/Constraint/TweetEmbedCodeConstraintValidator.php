@@ -25,7 +25,7 @@ class TweetEmbedCodeConstraintValidator extends ConstraintValidator {
     }
 
     foreach (Twitter::$validationRegexp as $pattern => $key) {
-      if (preg_match($pattern, $value->value)) {
+      if (preg_match($pattern, $value)) {
         return;
       }
     }
