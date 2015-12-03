@@ -8,6 +8,7 @@
 namespace Drupal\media_entity_twitter\Plugin\Validation\Constraint;
 
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
+use Drupal\media_entity\EmbedCodeValueTrait;
 use Drupal\media_entity_twitter\Plugin\MediaEntity\Type\Twitter;
 use GuzzleHttp\Client;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -19,7 +20,7 @@ use Symfony\Component\Validator\ConstraintValidator;
  */
 class TweetVisibleConstraintValidator extends ConstraintValidator implements ContainerInjectionInterface {
 
-  use StringOrLinkTrait;
+  use EmbedCodeValueTrait;
 
   /**
    * The HTTP client to fetch the feed data with.
@@ -49,7 +50,7 @@ class TweetVisibleConstraintValidator extends ConstraintValidator implements Con
    * {@inheritdoc}
    */
   public function validate($value, Constraint $constraint) {
-    $value = $this->getValue($value);
+    $value = $this->getEmbedCode($value);
     if (!isset($value)) {
       return;
     }
