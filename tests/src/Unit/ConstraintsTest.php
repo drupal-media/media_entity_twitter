@@ -7,9 +7,8 @@
 
 namespace Drupal\Tests\media_entity_twitter\Unit;
 
-use Drupal\Core\Field\FieldDefinitionInterface;
-use Drupal\Core\Field\FieldItemInterface;
 use Drupal\Core\Field\Plugin\Field\FieldType\StringLongItem;
+use Drupal\Core\TypedData\ComplexDataDefinitionInterface;
 use Drupal\media_entity_twitter\Plugin\Validation\Constraint\TweetEmbedCodeConstraint;
 use Drupal\media_entity_twitter\Plugin\Validation\Constraint\TweetEmbedCodeConstraintValidator;
 use Drupal\media_entity_twitter\Plugin\Validation\Constraint\TweetVisibleConstraint;
@@ -24,7 +23,7 @@ use Drupal\Tests\UnitTestCase;
 class ConstraintsTest extends UnitTestCase {
 
   /**
-   * Mocks a string or string_long FieldItemInterface wrapping a value.
+   * Creates a string_long FieldItemInterface wrapper around a value.
    *
    * @param string $value
    *   The wrapped value.
@@ -32,14 +31,13 @@ class ConstraintsTest extends UnitTestCase {
    * @return \Drupal\Core\Field\FieldItemInterface
    */
   protected function getMockFieldItem($value) {
-    $field_definition = $this->prophesize(FieldDefinitionInterface::class);
-    $field_definition->getClass()->willReturn(StringLongItem::class);
+    $definition = $this->prophesize(ComplexDataDefinitionInterface::class);
+    $definition->getPropertyDefinitions()->willReturn([]);
 
-    $item = $this->prophesize(FieldItemInterface::class);
-    $item->getFieldDefinition()->willReturn($field_definition->reveal());
-    $item->get('value')->willReturn($value);
+    $item = new StringLongItem($definition->reveal());
+    $item->set('value', $value);
 
-    return $item->reveal();
+    return $item;
   }
 
   /**
