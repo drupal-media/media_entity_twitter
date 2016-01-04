@@ -2,3 +2,6 @@ integration:
   version: VERSION
   js:
     'js/twitter.js': {}
+  dependencies:
+    - core/drupal
+    - core/jquery
