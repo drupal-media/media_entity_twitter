@@ -11,6 +11,7 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Url;
 use Drupal\media_entity\MediaInterface;
 use Drupal\media_entity\MediaTypeBase;
 use Drupal\media_entity\MediaTypeException;
@@ -163,6 +164,15 @@ class Twitter extends MediaTypeBase {
             return $tweet['retweet_count'];
           }
           return FALSE;
+
+        case 'thumbnail':
+          return Url::fromRoute('media_entity_twitter.thumbnail', [], [
+            'query' => [
+              'tweet' => $tweet['text'],
+              'author' => $tweet['user']['name'],
+              'avatar' => $tweet['user']['profile_image_url'],
+            ],
+          ])->toString();
       }
     }
 
@@ -275,6 +285,9 @@ class Twitter extends MediaTypeBase {
   public function thumbnail(MediaInterface $media) {
     if ($local_image = $this->getField($media, 'image_local')) {
       return $local_image;
+    }
+    elseif ($thumbnail = $this->getField($media, 'thumbnail')) {
+      return $thumbnail;
     }
 
     return $this->config->get('icon_base') . '/twitter.png';
