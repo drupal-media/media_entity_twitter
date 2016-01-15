@@ -11,6 +11,7 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Render\RendererInterface;
 use Drupal\Core\Url;
 use Drupal\media_entity\MediaInterface;
 use Drupal\media_entity\MediaTypeBase;
@@ -38,6 +39,13 @@ class Twitter extends MediaTypeBase {
   protected $configFactory;
 
   /**
+   * The renderer service.
+   *
+   * @var \Drupal\Core\Render\RendererInterface
+   */
+  protected $renderer;
+
+  /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
@@ -47,7 +55,8 @@ class Twitter extends MediaTypeBase {
       $plugin_definition,
       $container->get('entity_type.manager'),
       $container->get('entity_field.manager'),
-      $container->get('config.factory')
+      $container->get('config.factory'),
+      $container->get('renderer')
     );
   }
 
@@ -75,10 +84,13 @@ class Twitter extends MediaTypeBase {
    *   Entity field manager service.
    * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   Config factory service.
+   * @param \Drupal\Core\Render\RendererInterface $renderer
+   *   The renderer service.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, EntityFieldManagerInterface $entity_field_manager, ConfigFactoryInterface $config_factory) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, EntityFieldManagerInterface $entity_field_manager, ConfigFactoryInterface $config_factory, RendererInterface $renderer) {
     parent::__construct($configuration, $plugin_id, $plugin_definition, $entity_type_manager, $entity_field_manager, $config_factory->get('media_entity.settings'));
     $this->configFactory = $config_factory;
+    $this->renderer = $renderer;
   }
 
   /**
@@ -166,13 +178,18 @@ class Twitter extends MediaTypeBase {
           return FALSE;
 
         case 'thumbnail':
-          return Url::fromRoute('media_entity_twitter.thumbnail', [], [
-            'query' => [
-              'tweet' => $tweet['text'],
-              'author' => $tweet['user']['name'],
-              'avatar' => $tweet['user']['profile_image_url'],
-            ],
-          ])->toString();
+          $uri = 'public://twitter-thumbnails/' . $matches['id'] . '.svg';
+          if (! file_exists($uri)) {
+            $build = [
+              '#theme' => 'media_entity_twitter_tweet_thumbnail',
+              '#tweet' => $tweet['text'],
+              '#author' => $tweet['user']['name'],
+              '#avatar' => $tweet['user']['profile_image_url'],
+            ];
+            $contents = $this->renderer->render($build);
+            file_put_contents($uri, $contents);
+          }
+          return $uri;
       }
     }
 

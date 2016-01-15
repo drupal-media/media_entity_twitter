@@ -1,6 +1,0 @@
-media_entity_twitter.thumbnail:
-  path: '/twitter/thumbnail'
-  defaults:
-    _controller: '\Drupal\media_entity_twitter\ThumbnailGenerator::thumbnail'
-  requirements:
-    _access: 'TRUE'
