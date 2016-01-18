@@ -12,7 +12,6 @@ use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Render\RendererInterface;
-use Drupal\Core\Url;
 use Drupal\media_entity\MediaInterface;
 use Drupal\media_entity\MediaTypeBase;
 use Drupal\media_entity\MediaTypeException;
@@ -148,10 +147,15 @@ class Twitter extends MediaTypeBase {
 
         case 'image_local':
           if (isset($tweet['extended_entities']['media'][0]['media_url'])) {
-            $local_uri = $this->configFactory->get('media_entity_twitter.settings')->get('local_images') . '/' . $matches['id'] . '.' . pathinfo($tweet['extended_entities']['media'][0]['media_url'], PATHINFO_EXTENSION);
+            try {
+              $local_uri = $this->prepareLocalImageDirectory();
+            }
+            catch (\Exception $e) {
+              return FALSE;
+            }
 
+            $local_uri .= '/' . $matches['id'] . '.' . pathinfo($tweet['extended_entities']['media'][0]['media_url'], PATHINFO_EXTENSION);
             if (!file_exists($local_uri)) {
-              file_prepare_directory($this->configFactory->get('media_entity_twitter.settings')->get('local_images'), FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
               file_unmanaged_save_data($tweet['extended_entities']['media'][0]['media_url'], $local_uri, FILE_EXISTS_REPLACE);
             }
 
@@ -178,22 +182,73 @@ class Twitter extends MediaTypeBase {
           return FALSE;
 
         case 'thumbnail':
-          $uri = 'public://twitter-thumbnails/' . $matches['id'] . '.svg';
-          if (! file_exists($uri)) {
+          try {
+            $uri = $this->prepareLocalImageDirectory();
+          }
+          catch (\Exception $e) {
+            return FALSE;
+          }
+
+          $uri .= '/' . $matches['id'] . '.svg';
+          if (!file_exists($uri)) {
+            $avatar_uri = $this->copyTwitterProfileImage($tweet['user']['profile_image_url']);
+
             $build = [
               '#theme' => 'media_entity_twitter_tweet_thumbnail',
               '#tweet' => $tweet['text'],
               '#author' => $tweet['user']['name'],
-              '#avatar' => $tweet['user']['profile_image_url'],
+              '#avatar' => file_create_url($avatar_uri),
             ];
             $contents = $this->renderer->render($build);
-            file_put_contents($uri, $contents);
+            file_unmanaged_save_data($contents, $uri);
           }
           return $uri;
       }
     }
 
     return FALSE;
+  }
+
+  /**
+   * Copies a Twitter profile image to a local directory.
+   *
+   * @param string $source_url
+   *   The URL to the profile image hosted by Twitter.
+   *
+   * @return string
+   *   The local URI of the copied image, or $source_url if an error occurred.
+   */
+  protected function copyTwitterProfileImage($source_url) {
+    try {
+      $destination_uri = $this->prepareLocalImageDirectory();
+    }
+    catch (\Exception $e) {
+      return $source_url;
+    }
+
+    $destination_uri .= '/' . basename(parse_url($source_url, PHP_URL_PATH));
+    $destination_uri = file_unmanaged_copy($source_url, $destination_uri, FILE_EXISTS_REPLACE);
+
+    return $destination_uri ? $destination_uri : $source_url;
+  }
+
+  /**
+   * Prepares the configured local images directory for writing.
+   *
+   * @return string
+   *   The URI of the local image directory.
+   *
+   * @throws \Exception if the file system operation fails.
+   */
+  protected function prepareLocalImageDirectory() {
+    $dir = $this->configFactory->get('media_entity_twitter.settings')->get('local_images');
+    $success = file_prepare_directory($dir, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
+    if ($success) {
+      return $dir;
+    }
+    else {
+      throw new \Exception("Cannot prepare $dir for writing");
+    }
   }
 
   /**
