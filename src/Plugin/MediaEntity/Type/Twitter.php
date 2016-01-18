@@ -227,7 +227,10 @@ class Twitter extends MediaTypeBase {
     }
 
     $destination_uri .= '/' . basename(parse_url($source_url, PHP_URL_PATH));
-    $destination_uri = file_unmanaged_copy($source_url, $destination_uri, FILE_EXISTS_REPLACE);
+    // We need to use copy(), not file_unmanaged_copy(), because
+    // file_unmanaged_copy() will try to verify the existence of the file
+    // (not possible with HTTP URIs).
+    $destination_uri = copy($source_url, $destination_uri);
 
     return $destination_uri ? $destination_uri : $source_url;
   }
