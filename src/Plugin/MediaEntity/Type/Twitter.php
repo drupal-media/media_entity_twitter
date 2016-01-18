@@ -230,9 +230,9 @@ class Twitter extends MediaTypeBase {
     // We need to use copy(), not file_unmanaged_copy(), because
     // file_unmanaged_copy() will try to verify the existence of the file
     // (not possible with HTTP URIs).
-    $destination_uri = copy($source_url, $destination_uri);
+    $success = copy($source_url, $destination_uri);
 
-    return $destination_uri ? $destination_uri : $source_url;
+    return $success ? $destination_uri : $source_url;
   }
 
   /**
