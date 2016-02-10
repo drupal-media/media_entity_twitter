@@ -272,12 +272,19 @@ class Twitter extends MediaTypeBase {
   /**
    * {@inheritdoc}
    */
+  public function getDefaultThumbnail() {
+    return $this->config->get('icon_base') . '/twitter.png';
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function thumbnail(MediaInterface $media) {
     if ($local_image = $this->getField($media, 'image_local')) {
       return $local_image;
     }
 
-    return $this->config->get('icon_base') . '/twitter.png';
+    return $this->getDefaultThumbnail();
   }
 
   /**
