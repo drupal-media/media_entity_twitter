@@ -1,10 +1,5 @@
 <?php
 
-/**
- * @file
- * Contains \Drupal\media_entity_twitter\Plugin\Validation\Constraint\TweetVisibleConstraintValidator.
- */
-
 namespace Drupal\media_entity_twitter\Plugin\Validation\Constraint;
 
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
@@ -63,7 +58,7 @@ class TweetVisibleConstraintValidator extends ConstraintValidator implements Con
       }
     }
 
-    // fetch content from the given url
+    // Fetch content from the given url.
     $response = $this->httpClient->get($matches[0][0], ['allow_redirects' => FALSE]);
 
     if ($response->getStatusCode() == 302 && ($location = $response->getHeader('location'))) {

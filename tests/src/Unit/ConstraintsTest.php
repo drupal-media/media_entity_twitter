@@ -1,10 +1,5 @@
 <?php
 
-/**
- * @file
- * Contains \Drupal\Tests\media_entity_twitter\Unit\ConstraintsTest.
- */
-
 namespace Drupal\Tests\media_entity_twitter\Unit;
 
 use Drupal\Core\Field\Plugin\Field\FieldType\StringLongItem;
@@ -29,6 +24,7 @@ class ConstraintsTest extends UnitTestCase {
    *   The wrapped value.
    *
    * @return \Drupal\Core\Field\FieldItemInterface
+   *   Mocked string field item.
    */
   protected function getMockFieldItem($value) {
     $definition = $this->prophesize(ComplexDataDefinitionInterface::class);
@@ -45,6 +41,7 @@ class ConstraintsTest extends UnitTestCase {
    *
    * @covers \Drupal\media_entity_twitter\Plugin\Validation\Constraint\TweetEmbedCodeConstraintValidator
    * @covers \Drupal\media_entity_twitter\Plugin\Validation\Constraint\TweetEmbedCodeConstraint
+   *
    * @dataProvider embedCodeProvider
    */
   public function testTweetEmbedCodeConstraint($embed_code, $expected_violation_count) {
@@ -91,6 +88,7 @@ class ConstraintsTest extends UnitTestCase {
    *
    * @covers \Drupal\media_entity_twitter\Plugin\Validation\Constraint\TweetVisibleConstraintValidator
    * @covers \Drupal\media_entity_twitter\Plugin\Validation\Constraint\TweetVisibleConstraint
+   *
    * @dataProvider visibleProvider
    */
   public function testTweetVisibleConstraint($embed_code, $mocked_response, $violations) {
@@ -144,8 +142,16 @@ class ConstraintsTest extends UnitTestCase {
       ->will($this->returnValue(['https://twitter.com/drupal8changes?protected_redirect=true']));
 
     return [
-      'valid URL' => ['https://twitter.com/drupal8changes/status/649167396230578176', $visible_response, 0],
-      'invalid URL' => ['https://twitter.com/drupal8changes/status/649637310024273920', $invisible_response, 1],
+      'valid URL' => [
+        'https://twitter.com/drupal8changes/status/649167396230578176',
+        $visible_response,
+        0,
+      ],
+      'invalid URL' => [
+        'https://twitter.com/drupal8changes/status/649637310024273920',
+        $invisible_response,
+        1,
+      ],
     ];
   }
 

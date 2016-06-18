@@ -1,10 +1,5 @@
 <?php
 
-/**
- * @file
- * Contains \Drupal\media_entity_twitter\Tests\TweetEmbedFormatterTest.
- */
-
 namespace Drupal\media_entity_twitter\Tests;
 
 use Drupal\simpletest\WebTestBase;
@@ -46,7 +41,7 @@ class TweetEmbedFormatterTest extends WebTestBase {
    *
    * @var string
    */
-  protected $media_id = 'twitter';
+  protected $mediaId = 'twitter';
 
   /**
    * The test media bundle.
@@ -61,7 +56,7 @@ class TweetEmbedFormatterTest extends WebTestBase {
   protected function setUp() {
     parent::setUp();
 
-    $bundle['bundle'] = $this->media_id;
+    $bundle['bundle'] = $this->mediaId;
     $this->testBundle = $this->drupalCreateMediaBundle($bundle, 'twitter');
     $this->drupalPlaceBlock('local_actions_block');
     $this->adminUser = $this->drupalCreateUser([
@@ -143,7 +138,8 @@ class TweetEmbedFormatterTest extends WebTestBase {
     $this->drupalPostForm(NULL, $edit, t('Save settings'));
     $this->assertText('Saved ' . $edit_conf['label'] . ' configuration.');
 
-    // Assert that the new field types configurations have been successfully saved.
+    // Assert that the new field types configurations have been successfully
+    // saved.
     $xpath = $this->xpath('//*[@id="field-link-url"]');
     $this->assertEqual((string) $xpath[0]->td[0], 'Link URL');
     $this->assertEqual((string) $xpath[0]->td[1], 'field_link_url');
