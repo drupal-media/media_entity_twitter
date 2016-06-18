@@ -66,6 +66,7 @@ class TweetEmbedFormatterTest extends WebTestBase {
     $this->drupalPlaceBlock('local_actions_block');
     $this->adminUser = $this->drupalCreateUser([
       'administer media',
+      'administer media bundles',
       'administer media fields',
       'administer media form display',
       'administer media display',
@@ -194,18 +195,18 @@ class TweetEmbedFormatterTest extends WebTestBase {
       'field_link_url[0][uri]' => $tweet_url,
       'field_embed_code[0][value]' => $tweet,
     ];
-    $this->drupalPostForm(NULL, $edit, t('Save'));
+    $this->drupalPostForm(NULL, $edit, t('Save and publish'));
 
     // Assert that the media has been successfully saved.
     $this->assertText('Title');
 
     // Assert that the link url formatter exists on this page.
     $this->assertText('Link URL');
-    $this->assertFieldByXPath('/html/body/div/main/div/div/article/div[5]/div[2]/blockquote/a');
+    $this->assertRaw('<a href="https://twitter.com/RamzyStinson/statuses/670650348319576064">', 'Link in embedded Tweet found.');
 
     // Assert that the string_long code formatter exists on this page.
     $this->assertText('Embed code');
-    $this->assertFieldByXPath('/html/body/div/main/div/div/article/div[6]/div[2]/blockquote/a');
+    $this->assertRaw('<blockquote class="twitter-tweet', 'Embedded Tweet found.');
   }
 
 }

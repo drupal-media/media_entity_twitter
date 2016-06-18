@@ -83,6 +83,15 @@ class Twitter extends MediaTypeBase {
   /**
    * {@inheritdoc}
    */
+  public function defaultConfiguration() {
+    return [
+      'use_twitter_api' => FALSE,
+    ];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function providedFields() {
     $fields = array(
       'id' => $this->t('Tweet ID'),
