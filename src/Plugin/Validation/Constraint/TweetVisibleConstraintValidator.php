@@ -58,6 +58,11 @@ class TweetVisibleConstraintValidator extends ConstraintValidator implements Con
       }
     }
 
+    if (empty($matches[0][0])) {
+      // If there are no matches the URL is not correct, so stop validation.
+      return;
+    }
+
     // Fetch content from the given url.
     $response = $this->httpClient->get($matches[0][0], ['allow_redirects' => FALSE]);
 

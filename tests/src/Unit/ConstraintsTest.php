@@ -155,4 +155,42 @@ class ConstraintsTest extends UnitTestCase {
     ];
   }
 
+  /**
+   * Tests whether the TweetVisible constraint is robust against bad URLs.
+   *
+   * @covers \Drupal\media_entity_twitter\Plugin\Validation\Constraint\TweetVisibleConstraintValidator
+   * @covers \Drupal\media_entity_twitter\Plugin\Validation\Constraint\TweetVisibleConstraint
+   *
+   * @dataProvider badUrlsProvider
+   */
+  public function testBadUrlsOnVisibleConstraint($embed_code) {
+
+    $http_client = $this->getMock('\GuzzleHttp\Client');
+    $http_client->expects($this->never())->method('get');
+
+    $execution_context = $this->getMockBuilder('\Drupal\Core\TypedData\Validation\ExecutionContext')
+      ->disableOriginalConstructor()
+      ->getMock();
+
+    $validator = new TweetVisibleConstraintValidator($http_client);
+    $validator->initialize($execution_context);
+
+    $constraint = new TweetVisibleConstraint();
+    $validator->validate($this->getMockFieldItem($embed_code), $constraint);
+  }
+
+  /**
+   * Provides test data for testBadUrlsOnVisibleConstraint().
+   */
+  public function badUrlsProvider() {
+
+    return [
+      ['https://google.com'],
+      ['https://twitter.com/drupal/ssstatus/725771037837762561'],
+      ['https://twitter.com/drupal/status'],
+      ['https://twitter.com/drupal/status/foo'],
+    ];
+
+  }
+
 }
