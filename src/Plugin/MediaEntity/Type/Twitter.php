@@ -377,4 +377,19 @@ class Twitter extends MediaTypeBase {
     }
   }
 
+  /**
+   * {@inheritdoc}
+   */
+  public function getDefaultName(MediaInterface $media) {
+    // The default name will be the twitter username of the author + the
+    // tweet ID.
+    $user = $this->getField($media, 'user');
+    $id = $this->getField($media, 'id');
+    if (!empty($user) && !empty($id)) {
+      return $user . ' - ' . $id;
+    }
+
+    return parent::getDefaultName($media);
+  }
+
 }
