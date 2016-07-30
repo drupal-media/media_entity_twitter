@@ -6,6 +6,7 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Render\RendererInterface;
 use Drupal\media_entity\MediaInterface;
 use Drupal\media_entity\MediaTypeBase;
 use Drupal\media_entity\MediaTypeException;
@@ -31,6 +32,13 @@ class Twitter extends MediaTypeBase {
   protected $configFactory;
 
   /**
+   * The renderer service.
+   *
+   * @var \Drupal\Core\Render\RendererInterface
+   */
+  protected $renderer;
+
+  /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
@@ -40,7 +48,8 @@ class Twitter extends MediaTypeBase {
       $plugin_definition,
       $container->get('entity_type.manager'),
       $container->get('entity_field.manager'),
-      $container->get('config.factory')
+      $container->get('config.factory'),
+      $container->get('renderer')
     );
   }
 
@@ -68,10 +77,13 @@ class Twitter extends MediaTypeBase {
    *   Entity field manager service.
    * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   Config factory service.
+   * @param \Drupal\Core\Render\RendererInterface $renderer
+   *   The renderer service.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, EntityFieldManagerInterface $entity_field_manager, ConfigFactoryInterface $config_factory) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, EntityFieldManagerInterface $entity_field_manager, ConfigFactoryInterface $config_factory, RendererInterface $renderer) {
     parent::__construct($configuration, $plugin_id, $plugin_definition, $entity_type_manager, $entity_field_manager, $config_factory->get('media_entity.settings'));
     $this->configFactory = $config_factory;
+    $this->renderer = $renderer;
   }
 
   /**
@@ -138,10 +150,15 @@ class Twitter extends MediaTypeBase {
 
         case 'image_local':
           if (isset($tweet['extended_entities']['media'][0]['media_url'])) {
-            $local_uri = $this->configFactory->get('media_entity_twitter.settings')->get('local_images') . '/' . $matches['id'] . '.' . pathinfo($tweet['extended_entities']['media'][0]['media_url'], PATHINFO_EXTENSION);
+            try {
+              $local_uri = $this->prepareLocalImageDirectory();
+            }
+            catch (\Exception $e) {
+              return FALSE;
+            }
 
+            $local_uri .= '/' . $matches['id'] . '.' . pathinfo($tweet['extended_entities']['media'][0]['media_url'], PATHINFO_EXTENSION);
             if (!file_exists($local_uri)) {
-              file_prepare_directory($this->configFactory->get('media_entity_twitter.settings')->get('local_images'), FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
               file_unmanaged_save_data($tweet['extended_entities']['media'][0]['media_url'], $local_uri, FILE_EXISTS_REPLACE);
             }
 
@@ -166,10 +183,78 @@ class Twitter extends MediaTypeBase {
             return $tweet['retweet_count'];
           }
           return FALSE;
+
+        case 'thumbnail':
+          try {
+            $uri = $this->prepareLocalImageDirectory();
+          }
+          catch (\Exception $e) {
+            return FALSE;
+          }
+
+          $uri .= '/' . $matches['id'] . '.svg';
+          if (!file_exists($uri)) {
+            $avatar_uri = $this->copyTwitterProfileImage($tweet['user']['profile_image_url']);
+
+            $build = [
+              '#theme' => 'media_entity_twitter_tweet_thumbnail',
+              '#tweet' => $tweet['text'],
+              '#author' => $tweet['user']['name'],
+              '#avatar' => file_create_url($avatar_uri),
+            ];
+            $contents = $this->renderer->render($build);
+            file_unmanaged_save_data($contents, $uri);
+          }
+          return $uri;
       }
     }
 
     return FALSE;
+  }
+
+  /**
+   * Copies a Twitter profile image to a local directory.
+   *
+   * @param string $source_url
+   *   The URL to the profile image hosted by Twitter.
+   *
+   * @return string
+   *   The local URI of the copied image, or $source_url if an error occurred.
+   */
+  protected function copyTwitterProfileImage($source_url) {
+    try {
+      $destination_uri = $this->prepareLocalImageDirectory();
+    }
+    catch (\Exception $e) {
+      return $source_url;
+    }
+
+    $destination_uri .= '/' . basename(parse_url($source_url, PHP_URL_PATH));
+    // We need to use copy(), not file_unmanaged_copy(), because
+    // file_unmanaged_copy() will try to verify the existence of the file
+    // (not possible with HTTP URIs).
+    $success = copy($source_url, $destination_uri);
+
+    return $success ? $destination_uri : $source_url;
+  }
+
+  /**
+   * Prepares the configured local images directory for writing.
+   *
+   * @return string
+   *   The URI of the local image directory.
+   *
+   * @throws \Exception if the file system operation fails.
+   */
+  protected function prepareLocalImageDirectory() {
+    $dir = $this->configFactory->get('media_entity_twitter.settings')->get('local_images');
+    $success = file_prepare_directory($dir, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
+    if ($success) {
+      return $dir;
+    }
+    else {
+      throw new \Exception("Cannot prepare $dir for writing");
+    }
   }
 
   /**
@@ -285,6 +370,9 @@ class Twitter extends MediaTypeBase {
   public function thumbnail(MediaInterface $media) {
     if ($local_image = $this->getField($media, 'image_local')) {
       return $local_image;
+    }
+    elseif ($thumbnail = $this->getField($media, 'thumbnail')) {
+      return $thumbnail;
     }
 
     return $this->getDefaultThumbnail();

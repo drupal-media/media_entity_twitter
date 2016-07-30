@@ -13,5 +13,12 @@ function media_entity_twitter_theme() {
     'media_entity_twitter_tweet' => [
       'variables' => ['path' => NULL, 'attributes' => []],
     ],
+    'media_entity_twitter_tweet_thumbnail' => [
+      'variables' => [
+        'tweet' => NULL,
+        'author' => NULL,
+        'avatar' => NULL,
+      ],
+    ],
   ];
 }
