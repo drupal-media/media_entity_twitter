@@ -99,6 +99,7 @@ class Twitter extends MediaTypeBase {
         'image_local_uri' => $this->t('Gets URI of the locally saved image.'),
         'content' => $this->t('This tweet content'),
         'retweet_count' => $this->t('Retweet count for this tweet'),
+        'profile_image_url_https' => $this->t('Link to profile image')
       );
     }
 
@@ -164,6 +165,12 @@ class Twitter extends MediaTypeBase {
         case 'retweet_count':
           if (isset($tweet['retweet_count'])) {
             return $tweet['retweet_count'];
+          }
+          return FALSE;
+
+        case 'profile_image_url_https':
+          if (isset($tweet['user']['profile_image_url_https'])) {
+            return $tweet['user']['profile_image_url_https'];
           }
           return FALSE;
       }
