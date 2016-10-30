@@ -376,7 +376,7 @@ class Twitter extends MediaTypeBase {
         return Json::decode($result);
       }
       else {
-        throw new MediaTypeException(NULL, 'The tweet could not be retrived.');
+        throw new MediaTypeException(NULL, 'The tweet could not be retrieved.');
       }
     }
     else {

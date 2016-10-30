@@ -57,14 +57,14 @@ working follow the steps below:
   "Oauth access token" and the "Oauth access token secret"
 
 ### Storing field values
-If you want to store the fields that are retrived from Twitter you should create
+If you want to store the fields that are retrieved from Twitter you should create
 appropriate fields on the created media bundle (image, content and
 retweet_count) and map this to the fields provided by Twitter.php.
 
-**NOTE:** At the momemnt there is no GUI for that, so the only method of doing
+**NOTE:** At the moment there is no GUI for that, so the only method of doing
 that for now is via CMI.
 
-This whould be an example of that (the field_map section):
+This would be an example of that (the field_map section):
 
 ```
 langcode: en

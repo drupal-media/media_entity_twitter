@@ -4,7 +4,7 @@ media_entity_twitter.settings:
   mapping:
     local_images:
       type: string
-      label: 'Base folder for tuhmbnails'
+      label: 'Base folder for thumbnails'
 
 media_entity.bundle.type.twitter:
   type: mapping
