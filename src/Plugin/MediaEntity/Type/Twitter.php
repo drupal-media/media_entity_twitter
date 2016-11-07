@@ -6,10 +6,12 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\Core\Render\RendererInterface;
 use Drupal\media_entity\MediaInterface;
 use Drupal\media_entity\MediaTypeBase;
 use Drupal\media_entity\MediaTypeException;
-use Drupal\Component\Serialization\Json;
+use Drupal\media_entity_twitter\TweetFetcherInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -31,6 +33,27 @@ class Twitter extends MediaTypeBase {
   protected $configFactory;
 
   /**
+   * The renderer.
+   *
+   * @var \Drupal\Core\Render\RendererInterface
+   */
+  protected $renderer;
+
+  /**
+   * The tweet fetcher.
+   *
+   * @var \Drupal\media_entity_twitter\TweetFetcherInterface
+   */
+  protected $tweetFetcher;
+
+  /**
+   * The logger channel.
+   *
+   * @var \Drupal\Core\Logger\LoggerChannelInterface
+   */
+  protected $logger;
+
+  /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
@@ -40,7 +63,10 @@ class Twitter extends MediaTypeBase {
       $plugin_definition,
       $container->get('entity_type.manager'),
       $container->get('entity_field.manager'),
-      $container->get('config.factory')
+      $container->get('config.factory'),
+      $container->get('renderer'),
+      $container->get('media_entity_twitter.tweet_fetcher'),
+      $container->get('logger.factory')->get('media_entity_twitter')
     );
   }
 
@@ -68,10 +94,19 @@ class Twitter extends MediaTypeBase {
    *   Entity field manager service.
    * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   Config factory service.
+   * @param \Drupal\Core\Render\RendererInterface $renderer
+   *   The renderer.
+   * @param \Drupal\media_entity_twitter\TweetFetcherInterface $tweet_fetcher
+   *   The tweet fetcher.
+   * @param \Drupal\Core\Logger\LoggerChannelInterface $logger
+   *   The logger channel.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, EntityFieldManagerInterface $entity_field_manager, ConfigFactoryInterface $config_factory) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, EntityFieldManagerInterface $entity_field_manager, ConfigFactoryInterface $config_factory, RendererInterface $renderer, TweetFetcherInterface $tweet_fetcher, LoggerChannelInterface $logger) {
     parent::__construct($configuration, $plugin_id, $plugin_definition, $entity_type_manager, $entity_field_manager, $config_factory->get('media_entity.settings'));
     $this->configFactory = $config_factory;
+    $this->renderer = $renderer;
+    $this->tweetFetcher = $tweet_fetcher;
+    $this->logger = $logger;
   }
 
   /**
@@ -80,6 +115,7 @@ class Twitter extends MediaTypeBase {
   public function defaultConfiguration() {
     return [
       'use_twitter_api' => FALSE,
+      'generate_thumbnails' => FALSE,
     ];
   }
 
@@ -138,21 +174,27 @@ class Twitter extends MediaTypeBase {
           return FALSE;
 
         case 'image_local':
-          if (isset($tweet['extended_entities']['media'][0]['media_url'])) {
-            $local_uri = $this->configFactory->get('media_entity_twitter.settings')->get('local_images') . '/' . $matches['id'] . '.' . pathinfo($tweet['extended_entities']['media'][0]['media_url'], PATHINFO_EXTENSION);
+          $local_uri = $this->getField($media, 'image_local_uri');
 
-            if (!file_exists($local_uri)) {
-              file_prepare_directory($this->configFactory->get('media_entity_twitter.settings')->get('local_images'), FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
-              file_unmanaged_save_data($tweet['extended_entities']['media'][0]['media_url'], $local_uri, FILE_EXISTS_REPLACE);
+          if ($local_uri) {
+            if (file_exists($local_uri)) {
+              return $local_uri;
             }
-
-            return $local_uri;
+            else {
+              $image_url = $this->getField($media, 'image');
+              // @TODO: Use Guzzle, possibly in a service, for this.
+              $image_data = file_get_contents($image_url);
+              if ($image_data) {
+                return file_unmanaged_save_data($image_data, $local_uri, FILE_EXISTS_REPLACE);
+              }
+            }
           }
           return FALSE;
 
         case 'image_local_uri':
-          if (isset($tweet['extended_entities']['media'][0]['media_url'])) {
-            return $this->configFactory->get('media_entity_twitter.settings')->get('local_images') . '/' . $matches['id'] . '.' . pathinfo($tweet['extended_entities']['media'][0]['media_url'], PATHINFO_EXTENSION);
+          $image_url = $this->getField($media, 'image');
+          if ($image_url) {
+            return $this->getLocalImageUri($matches['id'], $image_url);
           }
           return FALSE;
 
@@ -257,6 +299,22 @@ class Twitter extends MediaTypeBase {
       ),
     );
 
+    $form['generate_thumbnails'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Generate thumbnails'),
+      '#default_value' => $this->configuration['generate_thumbnails'],
+      '#states' => [
+        'visible' => [
+          ':input[name="type_configuration[twitter][use_twitter_api]"]' => [
+            'checked' => TRUE,
+          ],
+        ],
+      ],
+      '#description' => $this->t('If checked, Drupal will automatically generate thumbnails for tweets that do not reference any external media. In certain circumstances, <strong>this may violate <a href="@policy">Twitter\'s fair use policy</a></strong>. Please <strong>read it and be careful</strong> if you choose to enable this.', [
+        '@policy' => 'https://dev.twitter.com/overview/terms/agreement-and-policy',
+      ]),
+    ];
+
     return $form;
   }
 
@@ -280,6 +338,46 @@ class Twitter extends MediaTypeBase {
   }
 
   /**
+   * Computes the destination URI for a tweet image.
+   *
+   * @param mixed $id
+   *   The tweet ID.
+   * @param string|null $media_url
+   *   The URL of the media (i.e., photo, video, etc.) associated with the
+   *   tweet.
+   *
+   * @return string
+   *   The desired local URI.
+   */
+  protected function getLocalImageUri($id, $media_url = NULL) {
+    $directory = $this->configFactory
+      ->get('media_entity_twitter.settings')
+      ->get('local_images');
+
+    // Ensure that the destination directory is writable. If not, log a warning
+    // and return the default thumbnail.
+    $ready = file_prepare_directory($directory, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
+    if (!$ready) {
+      $this->logger->warning('Could not prepare thumbnail destination directory @dir', [
+        '@dir' => $directory,
+      ]);
+      return $this->getDefaultThumbnail();
+    }
+
+    $local_uri = $directory . '/' . $id . '.';
+    if ($media_url) {
+      $local_uri .= pathinfo($media_url, PATHINFO_EXTENSION);
+    }
+    else {
+      // If there is no media associated with the tweet, we will generate an
+      // SVG thumbnail.
+      $local_uri .= 'svg';
+    }
+
+    return $local_uri;
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function getDefaultThumbnail() {
@@ -290,11 +388,35 @@ class Twitter extends MediaTypeBase {
    * {@inheritdoc}
    */
   public function thumbnail(MediaInterface $media) {
+    // If there's already a local image, use it.
     if ($local_image = $this->getField($media, 'image_local')) {
       return $local_image;
     }
 
-    return $this->getDefaultThumbnail();
+    // If thumbnail generation is disabled, use the default thumbnail.
+    if (empty($this->configuration['generate_thumbnails'])) {
+      return $this->getDefaultThumbnail();
+    }
+
+    // We might need to generate a thumbnail...
+    $id = $this->getField($media, 'id');
+    $thumbnail_uri = $this->getLocalImageUri($id);
+
+    // ...unless we already have, in which case, use it.
+    if (file_exists($thumbnail_uri)) {
+      return $thumbnail_uri;
+    }
+
+    // Render the thumbnail SVG using the theme system.
+    $thumbnail = [
+      '#theme' => 'media_entity_twitter_tweet_thumbnail',
+      '#content' => $this->getField($media, 'content'),
+      '#author' => $this->getField($media, 'user'),
+      '#avatar' => $this->getField($media, 'profile_image_url_https'),
+    ];
+    $svg = $this->renderer->renderRoot($thumbnail);
+
+    return file_unmanaged_save_data($svg, $thumbnail_uri, FILE_EXISTS_ERROR) ?: $this->getDefaultThumbnail();
   }
 
   /**
@@ -327,60 +449,24 @@ class Twitter extends MediaTypeBase {
   }
 
   /**
-   * Get auth settings.
-   *
-   * @return array
-   *   Array of auth settings.
-   */
-  protected function getAuthSettings() {
-    return array(
-      'consumer_key' => $this->configuration['consumer_key'],
-      'consumer_secret' => $this->configuration['consumer_secret'],
-      'oauth_access_token' => $this->configuration['oauth_access_token'],
-      'oauth_access_token_secret' => $this->configuration['oauth_access_token_secret'],
-    );
-  }
-
-  /**
    * Get a single tweet.
    *
    * @param int $id
    *   The tweet id.
    */
   protected function fetchTweet($id) {
-    $tweet = &drupal_static(__FUNCTION__);
+    $this->tweetFetcher->setCredentials(
+      $this->configuration['consumer_key'],
+      $this->configuration['consumer_secret'],
+      $this->configuration['oauth_access_token'],
+      $this->configuration['oauth_access_token_secret']
+    );
 
-    if (!isset($tweet)) {
-      // Check for dependencies.
-      // @todo There is perhaps a better way to do that.
-      if (!class_exists('\TwitterAPIExchange')) {
-        drupal_set_message($this->t('Twitter library is not available. Consult the README.md for installation instructions.'), 'error');
-        return;
-      }
-
-      // Settings.
-      $auth_settings = $this->getAuthSettings();
-      $request_settings = array(
-        'url' => 'https://api.twitter.com/1.1/statuses/show.json',
-        'method' => 'GET',
-      );
-      $query = "?id=$id";
-
-      // Get the tweet.
-      $twitter = new \TwitterAPIExchange($auth_settings);
-      $result = $twitter->setGetfield($query)
-        ->buildOauth($request_settings['url'], $request_settings['method'])
-        ->performRequest();
-
-      if ($result) {
-        return Json::decode($result);
-      }
-      else {
-        throw new MediaTypeException(NULL, 'The tweet could not be retrieved.');
-      }
+    try {
+      return $this->tweetFetcher->fetchTweet($id);
     }
-    else {
-      return $tweet;
+    catch (\Exception $e) {
+      throw new MediaTypeException(NULL, $e->getMessage());
     }
   }
 
