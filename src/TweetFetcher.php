@@ -35,7 +35,7 @@ class TweetFetcher implements TweetFetcherInterface {
   /**
    * TweetFetcher constructor.
    *
-   * @param \Drupal\Core\Cache\CacheBackendInterface|NULL $cache
+   * @param \Drupal\Core\Cache\CacheBackendInterface|null $cache
    *   (optional) A cache bin for storing fetched tweets.
    */
   public function __construct(CacheBackendInterface $cache = NULL) {
