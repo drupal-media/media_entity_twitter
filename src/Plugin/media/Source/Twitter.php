@@ -226,7 +226,7 @@ class Twitter extends MediaSourceBase implements MediaSourceFieldConstraintsInte
         case 'image_local_uri':
           $image_url = $this->getMetadata($media, 'image');
           if ($image_url) {
-            return $this->getLocalImageUri($matches['id'], $image_url);
+            return $this->getLocalImageUri($matches['id'], $media, $image_url);
           }
           return NULL;
 
