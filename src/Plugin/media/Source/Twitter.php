@@ -6,10 +6,10 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Render\RendererInterface;
 use Drupal\media\MediaInterface;
 use Drupal\media\MediaSourceBase;
-use Drupal\media\MediaTypeException;
 use Drupal\media\MediaTypeInterface;
 use Drupal\media_entity_twitter\TweetFetcherInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -30,13 +30,6 @@ use Drupal\media\MediaSourceFieldConstraintsInterface;
 class Twitter extends MediaSourceBase implements MediaSourceFieldConstraintsInterface {
 
   /**
-   * Config factory service.
-   *
-   * @var \Drupal\Core\Config\ConfigFactoryInterface
-   */
-  protected $configFactory;
-
-  /**
    * The renderer.
    *
    * @var \Drupal\Core\Render\RendererInterface
@@ -51,6 +44,13 @@ class Twitter extends MediaSourceBase implements MediaSourceFieldConstraintsInte
   protected $tweetFetcher;
 
   /**
+   * The logger channel.
+   *
+   * @var \Drupal\Core\Logger\LoggerChannelInterface
+   */
+  protected $logger;
+
+  /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
@@ -63,7 +63,8 @@ class Twitter extends MediaSourceBase implements MediaSourceFieldConstraintsInte
       $container->get('plugin.manager.field.field_type'),
       $container->get('config.factory'),
       $container->get('renderer'),
-      $container->get('media_entity_twitter.tweet_fetcher')
+      $container->get('media_entity_twitter.tweet_fetcher'),
+      $container->get('logger.factory')->get('media_entity_twitter')
     );
   }
 
@@ -97,12 +98,14 @@ class Twitter extends MediaSourceBase implements MediaSourceFieldConstraintsInte
    *   The renderer.
    * @param \Drupal\media_entity_twitter\TweetFetcherInterface $tweet_fetcher
    *   The tweet fetcher.
+   * @param \Drupal\Core\Logger\LoggerChannelInterface $logger
+   *   The logger channel.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, EntityFieldManagerInterface $entity_field_manager, FieldTypePluginManagerInterface $field_type_manager, ConfigFactoryInterface $config_factory, RendererInterface $renderer, TweetFetcherInterface $tweet_fetcher) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, EntityFieldManagerInterface $entity_field_manager, FieldTypePluginManagerInterface $field_type_manager, ConfigFactoryInterface $config_factory, RendererInterface $renderer, TweetFetcherInterface $tweet_fetcher, LoggerChannelInterface $logger) {
     parent::__construct($configuration, $plugin_id, $plugin_definition, $entity_type_manager, $entity_field_manager, $field_type_manager, $config_factory);
-    $this->configFactory = $config_factory;
     $this->renderer = $renderer;
     $this->tweetFetcher = $tweet_fetcher;
+    $this->logger = $logger;
   }
 
   /**
@@ -117,7 +120,6 @@ class Twitter extends MediaSourceBase implements MediaSourceFieldConstraintsInte
       'consumer_secret' => '',
       'oauth_access_token' => '',
       'oauth_access_token_secret' => '',
-      'generate_thumbnails' => '',
     ];
   }
 
@@ -151,7 +153,7 @@ class Twitter extends MediaSourceBase implements MediaSourceFieldConstraintsInte
     $matches = $this->matchRegexp($media);
 
     if (!$matches['id']) {
-      return FALSE;
+      return NULL;
     }
 
     // First we return the fields that are available from regex.
@@ -160,9 +162,8 @@ class Twitter extends MediaSourceBase implements MediaSourceFieldConstraintsInte
         return $matches['id'];
 
       case 'user':
-        if ($matches['user']) {
-          return $matches['user'];
-        }
+        return $matches['user'] ?: NULL;
+
       case 'thumbnail_uri':
         // If there's already a local image, use it.
         if ($local_image = $this->getMetadata($media, 'image_local')) {
@@ -176,7 +177,7 @@ class Twitter extends MediaSourceBase implements MediaSourceFieldConstraintsInte
 
         // We might need to generate a thumbnail...
         $id = $this->getMetadata($media, 'id');
-        $thumbnail_uri = $this->getLocalImageUri($id);
+        $thumbnail_uri = $this->getLocalImageUri($id, $media);
 
         // ...unless we already have, in which case, use it.
         if (file_exists($thumbnail_uri)) {
@@ -202,7 +203,7 @@ class Twitter extends MediaSourceBase implements MediaSourceFieldConstraintsInte
           if (isset($tweet['extended_entities']['media'][0]['media_url'])) {
             return $tweet['extended_entities']['media'][0]['media_url'];
           }
-          return FALSE;
+          return NULL;
 
         case 'image_local':
           $local_uri = $this->getMetadata($media, 'image_local_uri');
@@ -220,36 +221,44 @@ class Twitter extends MediaSourceBase implements MediaSourceFieldConstraintsInte
               }
             }
           }
-          return FALSE;
+          return NULL;
 
         case 'image_local_uri':
           $image_url = $this->getMetadata($media, 'image');
           if ($image_url) {
-            return $this->getLocalImageUri($matches['id'], $image_url);
+            return $this->getLocalImageUri($matches['id'], $media, $image_url);
           }
-          return FALSE;
+          return NULL;
 
         case 'content':
           if (isset($tweet['text'])) {
             return $tweet['text'];
           }
-          return FALSE;
+          return NULL;
 
         case 'retweet_count':
           if (isset($tweet['retweet_count'])) {
             return $tweet['retweet_count'];
           }
-          return FALSE;
+          return NULL;
 
         case 'profile_image_url_https':
           if (isset($tweet['user']['profile_image_url_https'])) {
             return $tweet['user']['profile_image_url_https'];
           }
-          return FALSE;
+          return NULL;
+
+        case 'default_name':
+          $user = $this->getMetadata($media, 'user');
+          $id = $this->getMetadata($media, 'id');
+          if (!empty($user) && !empty($id)) {
+            return $user . ' - ' . $id;
+          }
+          return NULL;
       }
     }
 
-    return FALSE;
+    return NULL;
   }
 
   /**
@@ -347,7 +356,7 @@ class Twitter extends MediaSourceBase implements MediaSourceFieldConstraintsInte
    * {@inheritdoc}
    */
   public function createSourceField(MediaTypeInterface $type) {
-    return parent::createSourceField($type)->set('label', 'Tweet Url');
+    return parent::createSourceField($type)->set('label', 'Tweet URL');
   }
 
   /**
@@ -355,6 +364,8 @@ class Twitter extends MediaSourceBase implements MediaSourceFieldConstraintsInte
    *
    * @param mixed $id
    *   The tweet ID.
+   * @param \Drupal\media\MediaInterface $media
+   *   The media entity.
    * @param string|null $media_url
    *   The URL of the media (i.e., photo, video, etc.) associated with the
    *   tweet.
@@ -362,7 +373,7 @@ class Twitter extends MediaSourceBase implements MediaSourceFieldConstraintsInte
    * @return string
    *   The desired local URI.
    */
-  protected function getLocalImageUri($id, $media_url = NULL) {
+  protected function getLocalImageUri($id, MediaInterface $media, $media_url = NULL) {
     $directory = $this->configFactory
       ->get('media_entity_twitter.settings')
       ->get('local_images');
@@ -374,7 +385,7 @@ class Twitter extends MediaSourceBase implements MediaSourceFieldConstraintsInte
       $this->logger->warning('Could not prepare thumbnail destination directory @dir', [
         '@dir' => $directory,
       ]);
-      return $this->getDefaultThumbnail();
+      return parent::getMetadata($media, 'thumbnail_uri');
     }
 
     $local_uri = $directory . '/' . $id . '.';
@@ -404,14 +415,12 @@ class Twitter extends MediaSourceBase implements MediaSourceFieldConstraintsInte
   protected function matchRegexp(MediaInterface $media) {
     $matches = [];
 
-    if (isset($this->configuration['source_field'])) {
-      $source_field = $this->configuration['source_field'];
-      if ($media->hasField($source_field)) {
-        $property_name = $media->get($source_field)->first()->mainPropertyName();
-        foreach (static::$validationRegexp as $pattern => $key) {
-          if (preg_match($pattern, $media->get($source_field)->{$property_name}, $matches)) {
-            return $matches;
-          }
+    $source_field = $this->getSourceFieldDefinition($media->bundle->entity)->getName();
+    if ($media->hasField($source_field)) {
+      $property_name = $media->get($source_field)->first()->mainPropertyName();
+      foreach (static::$validationRegexp as $pattern => $key) {
+        if (preg_match($pattern, $media->get($source_field)->{$property_name}, $matches)) {
+          return $matches;
         }
       }
     }
@@ -423,7 +432,10 @@ class Twitter extends MediaSourceBase implements MediaSourceFieldConstraintsInte
    * Get a single tweet.
    *
    * @param int $id
-   *   The tweet id.
+   *   The tweet ID.
+   *
+   * @return array
+   *   The tweet information.
    */
   protected function fetchTweet($id) {
     $this->tweetFetcher->setCredentials(
@@ -433,27 +445,7 @@ class Twitter extends MediaSourceBase implements MediaSourceFieldConstraintsInte
       $this->configuration['oauth_access_token_secret']
     );
 
-    try {
-      return $this->tweetFetcher->fetchTweet($id);
-    }
-    catch (\Exception $e) {
-      throw new MediaTypeException(NULL, $e->getMessage());
-    }
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function getDefaultName(MediaInterface $media) {
-    // The default name will be the twitter username of the author + the
-    // tweet ID.
-    $user = $this->getField($media, 'user');
-    $id = $this->getField($media, 'id');
-    if (!empty($user) && !empty($id)) {
-      return $user . ' - ' . $id;
-    }
-
-    return parent::getDefaultName($media);
+    return $this->tweetFetcher->fetchTweet($id);
   }
 
 }
